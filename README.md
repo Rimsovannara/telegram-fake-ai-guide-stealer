@@ -59,22 +59,22 @@ VirusTotal (look up by hash — sample not distributed here):
 
 ## Detections
 
-VirusTotal, installer `.exe` — **5 / 70** at first analysis (typical for a freshly
-packed loader; expect the count to rise on re-scan).
+VirusTotal (typical for a freshly packed, sandbox-evading loader; expect the count to
+rise on re-scan):
 
-| Vendor | Verdict |
-|---|---|
-| ESET-NOD32 | `Win64/Kryptik.GXY` trojan |
-| Elastic | Malicious (high confidence) |
-| Rising | `Trojan.ShellCodeLoader!1.12EA8` |
-| Tencent | `Trojan.Win64.Kryptik.16003858` |
-| SecureAge | Malicious |
+| Artifact | Ratio | Notable verdicts |
+|---|---|---|
+| Installer `.exe` | **5 / 70** | ESET `Win64/Kryptik.GXY`, Elastic (high), Rising `ShellCodeLoader`, Tencent `Kryptik`, SecureAge |
+| Outer archive | **2 / 64** | ESET `Win64/Kryptik.GXY`, Rising `ShellCodeLoader` |
 
-- **Popular threat label:** `trojan.shellcodeloader`
+- **Popular threat label:** `trojan.shellcodeloader` (both artifacts)
 - **Family label:** `shellcodeloader`
+- **VT sandbox behavior (archive):** `detect-debug-environment`, `long-sleeps` —
+  **anti-analysis**: checks for a debugger/sandbox and sleeps to outlast automated
+  scanners, which keeps the static detection count low.
 
 Note the **`Win64`** label on a 32-bit installer: it refers to the packed **64-bit**
-payload carried inside.
+payload carried inside. Full per-vendor tables: [`iocs/detections.md`](iocs/detections.md).
 
 ---
 
@@ -99,6 +99,10 @@ payload carried inside.
    extract (not performed).
 7. **Stale build stamp.** The installer stub carries a 2024-06-10 compile timestamp
    against a 2026 archive date — a reused builder.
+8. **Anti-analysis behavior.** VirusTotal's sandbox tagged the sample
+   `detect-debug-environment` and `long-sleeps` — it checks for a debugger/analysis
+   environment and uses long sleeps to outlast automated sandbox timeouts. This evasion
+   is a direct reason the static detection ratio stays low (5/70 exe, 2/64 archive).
 
 ---
 
