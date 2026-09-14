@@ -1,177 +1,82 @@
-# Fake "AI Programming Guide" → Telegram Session Stealer
+# Fake "AI programming guide" → Telegram session stealer
 
-Static malware analysis and Indicators of Compromise (IOCs) for a
-**`trojan.shellcodeloader`** sample distributed over Telegram while disguised as a
-programming tutorial.
+Static analysis and indicators for a `trojan.shellcodeloader` sample that was sent over
+Telegram disguised as a programming tutorial.
 
-> **Defensive research only.** This repository contains **hashes, IOCs, and analysis
-> notes** — **no malware sample or payload is included**. Nothing here can be run to
-> reproduce the attack. See [DISCLAIMER](#disclaimer).
+This repo has hashes, indicators, and notes only — **no sample or payload**. Nothing here
+can be run to reproduce the attack.
 
----
+## What it is
 
-## Summary
+The file arrived over Telegram with the caption *"If your mobile phone is not compatible
+for viewing, please use a computer to view the tutorial."* It's not a document — it's a
+Windows installer (Inno Setup 6.3) that carries a packed 64-bit payload. The caption is
+the social-engineering part: the payload can't run on a phone, so it pushes the target to
+a Windows PC.
 
-A file was delivered via Telegram with the social-engineering caption:
+The payload is a shellcode loader — it decrypts code and runs it in memory, which is why
+so few engines flag it at first. Loaders like this usually drop an info-stealer that goes
+after browser credentials, crypto wallets, and the Telegram Desktop session (`tdata`),
+which is enough to take over the account without a password or 2FA prompt.
 
-> *"If your mobile phone is not compatible for viewing, please use a computer to view
-> the tutorial. Thank you."*
+## Sample
 
-The "tutorial" is **not a document**. It is a Windows installer that unpacks and runs a
-packed 64-bit payload. The caption exists to move the target from a safe mobile device
-to a vulnerable Windows PC, since the payload cannot execute on Android or iOS.
-
-The payload is a **shellcode loader** — it decrypts code and runs it in memory (leaving a
-minimal on-disk footprint), which is consistent with its low first-day antivirus
-detection. Loaders of this class typically deliver an **information stealer** that
-harvests browser credentials, crypto wallets, and — the focus of this write-up — the
-**Telegram Desktop session** (`tdata`), enabling full account takeover **without a
-password or 2FA prompt**.
-
----
-
-## Sample metadata
-
-| Property | Value |
+| | |
 |---|---|
 | Presented as | `2026 High-Efficiency Guide to Using AI for Computer Programming` |
-| Delivery | Telegram file + lure caption |
-| Outer container | **RAR5** archive named with a `.7z` extension |
-| Inner file | Windows PE32 executable (32-bit GUI) |
-| Installer framework | **Inno Setup 6.3.0** |
-| Embedded payload | **packed x86-64 (PE32+) executable**, high entropy |
-| Fake version resource | ProductName `L4XH3.exe`, ProductVersion `18.606.696.443`, blank publisher/copyright |
-| Digital signature | none |
-| Analysis method | **static only — never executed** |
+| Container | RAR5 archive named with a `.7z` extension |
+| Inner file | Windows PE32, Inno Setup 6.3.0 |
+| Payload | packed x86-64 PE, high entropy |
+| Signature | none |
+| Analysis | static only — never executed |
 
 ### Hashes (SHA-256)
 
-| Artifact | Size (bytes) | SHA-256 |
-|---|---|---|
-| Outer archive (`.7z`-named RAR5) | 21,316,997 | `3b305ebee74814e35941fcc6f9517a542e4c22ac14d9379376b1721054abdcf5` |
-| Installer `.exe` | 21,783,784 | `505134aa3d1ef51be225b3cab7dc3b1549bbd4151c79e9bc1b253b51decc092e` |
+```
+3b305ebee74814e35941fcc6f9517a542e4c22ac14d9379376b1721054abdcf5  archive (RAR5, .7z name)
+505134aa3d1ef51be225b3cab7dc3b1549bbd4151c79e9bc1b253b51decc092e  installer .exe
+```
 
-VirusTotal (look up by hash — sample not distributed here):
-- [Archive](https://www.virustotal.com/gui/file/3b305ebee74814e35941fcc6f9517a542e4c22ac14d9379376b1721054abdcf5)
-- [Installer](https://www.virustotal.com/gui/file/505134aa3d1ef51be225b3cab7dc3b1549bbd4151c79e9bc1b253b51decc092e)
-
----
+VirusTotal: [archive](https://www.virustotal.com/gui/file/3b305ebee74814e35941fcc6f9517a542e4c22ac14d9379376b1721054abdcf5)
+· [installer](https://www.virustotal.com/gui/file/505134aa3d1ef51be225b3cab7dc3b1549bbd4151c79e9bc1b253b51decc092e)
 
 ## Detections
 
-VirusTotal (typical for a freshly packed, sandbox-evading loader; expect the count to
-rise on re-scan):
+- Installer: 5/70 — ESET `Win64/Kryptik.GXY`, Elastic (high), Rising `ShellCodeLoader`,
+  Tencent `Kryptik`, SecureAge.
+- Archive: 2/64 — ESET `Win64/Kryptik.GXY`, Rising `ShellCodeLoader`.
+- VT sandbox tags: `detect-debug-environment`, `long-sleeps` — anti-analysis, which is
+  why the static count stays low.
 
-| Artifact | Ratio | Notable verdicts |
-|---|---|---|
-| Installer `.exe` | **5 / 70** | ESET `Win64/Kryptik.GXY`, Elastic (high), Rising `ShellCodeLoader`, Tencent `Kryptik`, SecureAge |
-| Outer archive | **2 / 64** | ESET `Win64/Kryptik.GXY`, Rising `ShellCodeLoader` |
+The `Win64` label on a 32-bit installer refers to the packed 64-bit payload inside.
 
-- **Popular threat label:** `trojan.shellcodeloader` (both artifacts)
-- **Family label:** `shellcodeloader`
-- **VT sandbox behavior (archive):** `detect-debug-environment`, `long-sleeps` —
-  **anti-analysis**: checks for a debugger/sandbox and sleeps to outlast automated
-  scanners, which keeps the static detection count low.
+## Static findings
 
-Note the **`Win64`** label on a 32-bit installer: it refers to the packed **64-bit**
-payload carried inside. Full per-vendor tables: [`iocs/detections.md`](iocs/detections.md).
+- Named `.7z` but the bytes are a RAR5 archive.
+- The archive holds a single `.exe` — a real guide would be a PDF/EPUB.
+- ~20 MB compressed block (Inno `zlb`, entropy ≈ 8.0), opaque to string analysis.
+- A valid packed x86-64 PE sits at offset `0x0ba408`; its strings are noise (encrypted).
+- Version resource is faked: blank publisher/copyright, random ProductName (`L4XH3.exe`),
+  nonsense version (`18.606.696.443`).
+- No plaintext C2 — the config is inside the encrypted payload.
 
----
+## Why the Telegram session is the target
 
-## Static analysis findings
-
-1. **Extension mismatch.** The download is named `.7z` but its bytes are a **RAR5**
-   archive (`Rar5`, method `v6:32M:m3`). Container/extension mismatch is a common way
-   to evade naming-based filters.
-2. **Document → executable.** The archive holds a single `.exe`. A legitimate guide
-   would be a PDF/EPUB, not a program.
-3. **Inno Setup wrapper.** The `.exe` is an Inno Setup 6.3.0 installer. The bulk of the
-   file (~20 MB) is a compressed block (`zlb` magic, overlay entropy ≈ 8.0) — opaque to
-   static string analysis.
-4. **Embedded packed 64-bit PE.** A valid `PE32+` (x86-64, 6 sections) is embedded at
-   file offset `0x0ba408`. Its strings are pure high-entropy noise → **packed /
-   encrypted**, matching the ShellCodeLoader / Kryptik classification.
-5. **Forged version resource.** Publisher, description, and copyright fields are blank
-   padding; ProductName is a random token (`L4XH3.exe`) and the version is nonsense
-   (`18.606.696.443`).
-6. **No plaintext C2.** No URLs, IPs, or domains recoverable from the file — the C2
-   configuration is inside the encrypted payload and would require dynamic analysis to
-   extract (not performed).
-7. **Stale build stamp.** The installer stub carries a 2024-06-10 compile timestamp
-   against a 2026 archive date — a reused builder.
-8. **Anti-analysis behavior.** VirusTotal's sandbox tagged the sample
-   `detect-debug-environment` and `long-sleeps` — it checks for a debugger/analysis
-   environment and uses long sleeps to outlast automated sandbox timeouts. This evasion
-   is a direct reason the static detection ratio stays low (5/70 exe, 2/64 archive).
-
----
-
-## Attack chain
-
-| # | Stage | Description |
-|---|---|---|
-| 1 | Delivery & disguise | Telegram file, `.7z`-named RAR, document-style name, blank publisher. |
-| 2 | Execution | Victim opens `.exe` on Windows; Inno Setup drops the packed 64-bit loader. |
-| 3 | Shellcode loading | Loader decrypts and runs code **in memory** → minimal disk footprint, low AV detection. |
-| 4 | Harvest | In-memory stealer sweeps browser stores, crypto wallets, and Telegram Desktop `tdata`. |
-| 5 | Exfiltration | Collected data zipped and uploaded (attacker server or Telegram bot channel). |
-
----
-
-## Why the Telegram session is the prize
-
-Telegram Desktop stores logged-in state in `%AppData%\Telegram Desktop\tdata\`
-(`key_datas`, an account directory, and a `maps` index). Once you are signed in, **this
-folder is the account key**:
-
-- **Not bound to your machine** by default — it works on another computer as-is.
-- **No local passcode** unless you set one — the copy opens without a prompt.
-- **Bypasses login & 2FA** — restoring an existing session never triggers the new-login
-  flow that a cloud password or SMS/app code would guard.
-
-Copying `tdata` is therefore equivalent to copying the login. See
+Telegram Desktop keeps the logged-in session in `%AppData%\Telegram Desktop\tdata\`. By
+default it isn't tied to the machine and isn't protected by a local passcode, so copying
+that folder is the same as copying the login — and restoring an existing session never
+triggers the 2FA that guards new logins. Details in
 [`iocs/telegram-tdata.md`](iocs/telegram-tdata.md).
 
----
+## Defending against it
 
-## Defense & remediation
+- Set a **Local Passcode** in Telegram Desktop — encrypts the session with a secret
+  that isn't in `tdata`, so a stolen copy can't be opened. This is the main defense.
+- Turn on Two-Step Verification.
+- Check Settings → Devices and terminate sessions you don't recognise; set them to
+  auto-terminate after a short idle window.
+- Don't run "documents" that are executables. Check unknown files by hash on VirusTotal.
 
-**Harden Telegram Desktop**
-- Set a **Local Passcode** (Settings → Privacy) — the single most effective step; a
-  stolen `tdata` cannot be unlocked without it.
-- Enable **Two-Step Verification** (cloud password) with a recovery email you control.
-- **Review Active Sessions** (Settings → Devices) and terminate anything unrecognised.
-- Set sessions to **auto-terminate** after the shortest acceptable idle window.
-
-**General**
-- Never run "documents" that are executables/installers. Verify unknown files by hash on
-  VirusTotal before opening.
-- Treat "open it on a computer instead" as a red flag.
-
-**If it was executed — assume compromise.** From a *different* device: terminate all
-Telegram sessions, change the cloud password, rotate all passwords saved in the PC's
-browser, and move crypto to new wallets. Then reinstall the affected PC — deleting the
-file does not undo what a stealer already exfiltrated.
-
----
-
-## Repository contents
-
-```
-README.md                 – this analysis
-iocs/hashes.txt           – SHA-256 hashes (machine-readable)
-iocs/telegram-tdata.md    – Telegram session-theft mechanism (defensive detail)
-iocs/detections.md        – vendor detection table
-```
-
----
-
-## Disclaimer
-
-This repository is published for **defensive security education and threat
-intelligence**. It contains only hashes, indicators, and analysis notes describing
-observed attacker behaviour at a conceptual level. **No malicious sample, payload, or
-step-by-step offensive instructions are included.** The sample was analysed **statically
-and never executed**; no file was uploaded to any third-party service. Vendor names and
-verdicts are reproduced from public VirusTotal results. Use this information to detect,
-defend against, and remediate the described threat.
+If it was already run: from another device, terminate all Telegram sessions, change the
+cloud password, rotate browser-saved passwords, move any crypto to new wallets, then
+reinstall the PC.
