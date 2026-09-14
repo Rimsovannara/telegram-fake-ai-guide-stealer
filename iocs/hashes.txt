@@ -1,0 +1,6 @@
+# SHA-256 hashes — fake "AI Programming Guide" Telegram session stealer
+# Defensive IOCs only. No sample distributed. Look up on VirusTotal by hash.
+#
+# sha256  size_bytes  role  filename
+3b305ebee74814e35941fcc6f9517a542e4c22ac14d9379376b1721054abdcf5  21316997  outer_archive_rar5_named_7z  2026_High_Efficiency_Guide_to_Using_AI_for_Computer_Programming.7z
+505134aa3d1ef51be225b3cab7dc3b1549bbd4151c79e9bc1b253b51decc092e  21783784  inno_setup_installer_exe  2026 High-Efficiency Guide to Using AI for Computer Programming.exe
